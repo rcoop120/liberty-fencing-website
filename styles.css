@@ -287,10 +287,7 @@ body {
 
 /* About Section */
 .about-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
-    align-items: center;
+    max-width: 700px;
 }
 
 .about-text .lead {
@@ -324,26 +321,6 @@ body {
 .stat-label {
     font-size: 0.9rem;
     color: var(--text-light);
-}
-
-.about-image {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.image-placeholder {
-    width: 100%;
-    max-width: 400px;
-    aspect-ratio: 4/3;
-    background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--bg);
-    font-size: 1.5rem;
-    font-weight: 600;
 }
 
 /* Service Areas */
@@ -533,13 +510,6 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 1024px) {
-    .about-content {
-        grid-template-columns: 1fr;
-        gap: 2rem;
-    }
-}
-
 @media (max-width: 768px) {
     .nav-menu {
         display: none;
