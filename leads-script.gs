@@ -92,7 +92,7 @@ function handleGetLeads() { return jsonOut(getLeadsData()); }
 
 // ── PRODUCTS ──
 function getProductsData() {
-  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category"]);
+  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category", "FenceType"]);
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return { products: [] };
 
@@ -111,14 +111,14 @@ function getProductsData() {
 function handleGetProducts() { return jsonOut(getProductsData()); }
 
 function handleSaveProduct(data) {
-  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category"]);
+  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category", "FenceType"]);
   var all = sheet.getDataRange().getValues();
 
   if (data.id) {
     // Update existing
     for (var i = 1; i < all.length; i++) {
       if (all[i][0] === data.id) {
-        sheet.getRange(i + 1, 1, 1, 6).setValues([[data.id, data.type, data.label, data.pricePerFt, data.color, data.category]]);
+        sheet.getRange(i + 1, 1, 1, 7).setValues([[data.id, data.type, data.label, data.pricePerFt, data.color, data.category, data.fenceType || ""]]);
         return jsonOut({ success: true, updated: data.id });
       }
     }
@@ -126,12 +126,12 @@ function handleSaveProduct(data) {
 
   // New product
   var id = data.id || Utilities.getUuid().substring(0, 8);
-  sheet.appendRow([id, data.type || "", data.label || "", data.pricePerFt || 0, data.color || "#333333", data.category || "fence"]);
+  sheet.appendRow([id, data.type || "", data.label || "", data.pricePerFt || 0, data.color || "#333333", data.category || "fence", data.fenceType || ""]);
   return jsonOut({ success: true, created: id });
 }
 
 function handleDeleteProduct(data) {
-  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category"]);
+  var sheet = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category", "FenceType"]);
   var all = sheet.getDataRange().getValues();
 
   for (var i = 1; i < all.length; i++) {
@@ -162,8 +162,11 @@ function setupSheet() {
   leads.setColumnWidths(9, 1, 100);
 
   // Products sheet with default products
-  var products = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category"]);
-  products.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground("#1a1a1a").setFontColor("#f4a818");
+  // FenceType (col 7) is only meaningful for gate rows — it must exactly match
+  // the Type value (col 2) of the fence(s) that gate applies to. Every fence
+  // type needs its own gate row(s); there is no "universal" gate.
+  var products = getOrCreateSheet(PRODUCTS_SHEET, ["ID", "Type", "Label", "Price Per Ft", "Color", "Category", "FenceType"]);
+  products.getRange(1, 1, 1, 7).setFontWeight("bold").setBackground("#1a1a1a").setFontColor("#f4a818");
   products.setFrozenRows(1);
   products.setColumnWidths(1, 1, 100);
   products.setColumnWidths(2, 1, 150);
@@ -171,16 +174,25 @@ function setupSheet() {
   products.setColumnWidths(4, 1, 120);
   products.setColumnWidths(5, 1, 100);
   products.setColumnWidths(6, 1, 100);
+  products.setColumnWidths(7, 1, 120);
 
   // Seed default products if empty
   if (products.getLastRow() <= 1) {
-    products.appendRow(["wp001", "wood_pine", "Wood (Treated Pine)", 35, "#e67e22", "fence"]);
-    products.appendRow(["wc002", "wood_cedar", "Wood (Cedar)", 42, "#c0392b", "fence"]);
-    products.appendRow(["vn003", "vinyl", "Vinyl Privacy", 67, "#27ae60", "fence"]);
-    products.appendRow(["cl004", "chain_link", "Chain Link", 20, "#95a5a6", "fence"]);
-    products.appendRow(["al005", "aluminum", "Aluminum Ornamental", 46, "#2980b9", "fence"]);
-    products.appendRow(["gs006", "single_gate", "Single Gate", 700, "#f39c12", "gate"]);
-    products.appendRow(["gd007", "double_gate", "Double/Drive Gate", 1400, "#e74c3c", "gate"]);
+    products.appendRow(["wp001", "wood_pine", "Wood (Treated Pine)", 35, "#e67e22", "fence", ""]);
+    products.appendRow(["wc002", "wood_cedar", "Wood (Cedar)", 42, "#c0392b", "fence", ""]);
+    products.appendRow(["vn003", "vinyl", "Vinyl Privacy", 67, "#27ae60", "fence", ""]);
+    products.appendRow(["cl004", "chain_link", "Chain Link", 20, "#95a5a6", "fence", ""]);
+    products.appendRow(["al005", "aluminum", "Aluminum Ornamental", 46, "#2980b9", "fence", ""]);
+    products.appendRow(["wp006", "single_gate", "Single Gate", 700, "#f39c12", "gate", "wood_pine"]);
+    products.appendRow(["wp007", "double_gate", "Double/Drive Gate", 1400, "#e74c3c", "gate", "wood_pine"]);
+    products.appendRow(["wc008", "single_gate", "Single Gate", 700, "#f39c12", "gate", "wood_cedar"]);
+    products.appendRow(["wc009", "double_gate", "Double/Drive Gate", 1400, "#e74c3c", "gate", "wood_cedar"]);
+    products.appendRow(["vn010", "single_gate", "Single Gate", 700, "#f39c12", "gate", "vinyl"]);
+    products.appendRow(["vn011", "double_gate", "Double/Drive Gate", 1400, "#e74c3c", "gate", "vinyl"]);
+    products.appendRow(["cl012", "single_gate", "Single Gate", 700, "#f39c12", "gate", "chain_link"]);
+    products.appendRow(["cl013", "double_gate", "Double/Drive Gate", 1400, "#e74c3c", "gate", "chain_link"]);
+    products.appendRow(["al014", "single_gate", "Single Gate", 1350, "#f39c12", "gate", "aluminum"]);
+    products.appendRow(["al015", "double_gate", "Double/Drive Gate", 2700, "#e74c3c", "gate", "aluminum"]);
   }
 }
 

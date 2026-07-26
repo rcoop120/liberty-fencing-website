@@ -169,6 +169,10 @@
       <label id="price-label">Price per foot ($)</label>
       <input type="number" id="p-price" min="0" step="1" />
     </div>
+    <div class="form-row" id="fencetype-row" style="display:none">
+      <label>Applies to fence type</label>
+      <select id="p-fencetype"></select>
+    </div>
     <div class="form-row">
       <label>Map color</label>
       <input type="color" id="p-color" value="#333333" />
@@ -314,9 +318,10 @@ function renderProducts() {
   }
   grid.innerHTML = products.map(p => {
     const priceLabel = p.Category === "gate" ? "$" + Number(p["Price Per Ft"]).toLocaleString() + " flat" : "$" + p["Price Per Ft"] + "/ft";
+    const metaLine = p.Category === "gate" ? `Gate for ${p.FenceType || "(unset!)"}` : `${p.Type} &middot; fence`;
     return `<div class="product-card">
       <h3><span class="color-dot" style="background:${p.Color}"></span>${p.Label}</h3>
-      <div class="meta">${p.Type} &middot; ${p.Category}</div>
+      <div class="meta">${metaLine}</div>
       <div class="price">${priceLabel}</div>
       <div class="actions">
         <button class="btn" onclick='editProduct(${JSON.stringify(JSON.stringify(p))})'>Edit</button>
@@ -324,6 +329,13 @@ function renderProducts() {
       </div>
     </div>`;
   }).join("");
+}
+
+function populateFenceTypeOptions(selected) {
+  const select = document.getElementById("p-fencetype");
+  const types = [...new Set(products.filter(p => p.Category === "fence").map(p => p.Type))];
+  select.innerHTML = types.map(t => `<option value="${t}">${t}</option>`).join("");
+  if (selected && types.includes(selected)) select.value = selected;
 }
 
 function openProductModal(product) {
@@ -334,6 +346,7 @@ function openProductModal(product) {
   document.getElementById("p-category").value = product ? product.Category : "fence";
   document.getElementById("p-price").value = product ? product["Price Per Ft"] : "";
   document.getElementById("p-color").value = product ? product.Color : "#333333";
+  populateFenceTypeOptions(product ? product.FenceType : "");
   updatePriceLabel();
   document.getElementById("product-modal").classList.add("open");
 }
@@ -343,8 +356,10 @@ function closeProductModal() {
 }
 
 function updatePriceLabel() {
-  document.getElementById("price-label").textContent =
-    document.getElementById("p-category").value === "gate" ? "Price (flat $)" : "Price per foot ($)";
+  const isGate = document.getElementById("p-category").value === "gate";
+  document.getElementById("price-label").textContent = isGate ? "Price (flat $)" : "Price per foot ($)";
+  document.getElementById("fencetype-row").style.display = isGate ? "" : "none";
+  if (isGate) populateFenceTypeOptions(document.getElementById("p-fencetype").value);
 }
 document.getElementById("p-category").addEventListener("change", updatePriceLabel);
 
@@ -359,15 +374,18 @@ async function deleteProduct(id) {
 }
 
 async function saveProduct() {
+  const category = document.getElementById("p-category").value;
   const payload = {
     id: document.getElementById("p-id").value || null,
     type: document.getElementById("p-type").value.trim(),
     label: document.getElementById("p-label").value.trim(),
     pricePerFt: Number(document.getElementById("p-price").value) || 0,
     color: document.getElementById("p-color").value,
-    category: document.getElementById("p-category").value
+    category: category,
+    fenceType: category === "gate" ? document.getElementById("p-fencetype").value : ""
   };
   if (!payload.label || !payload.type) { alert("Label and type are required"); return; }
+  if (category === "gate" && !payload.fenceType) { alert("Choose which fence type this gate applies to"); return; }
   await apiPost("saveProduct", payload);
   closeProductModal();
   loadProducts();

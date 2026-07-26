@@ -808,14 +808,7 @@
     <!-- Gate type -->
     <div id="gate-type-section" style="display:none">
       <div class="section-label">Gate Type</div>
-      <div id="gate-type-btns">
-        <button class="gate-type-btn active" data-gate="single">
-          <span class="gate-icon">🚪</span>Single Gate<br><small>$700</small>
-        </button>
-        <button class="gate-type-btn" data-gate="double">
-          <span class="gate-icon">🏗️</span>Double / Drive<br><small>$1,400</small>
-        </button>
-      </div>
+      <div id="gate-type-btns"></div>
     </div>
 
     <!-- Estimate -->
@@ -856,6 +849,11 @@
       <p>Type your property address in the search bar to navigate to your home on the map.</p>
     </div>
     <div class="tut-step">
+      <div class="tut-icon">🪵</div>
+      <h3>Choose Your Fence Type</h3>
+      <p>Pick a fence material and style from the panel. You'll need to choose one before you can start drawing.</p>
+    </div>
+    <div class="tut-step">
       <div class="tut-icon">✏️</div>
       <h3>Draw Your Fence</h3>
       <p>Tap the map to place fence points along your property line. Tap <strong>Finish Segment</strong> when done with each section.</p>
@@ -867,6 +865,7 @@
     </div>
     <div id="tutorial-dots">
       <span class="tut-dot active"></span>
+      <span class="tut-dot"></span>
       <span class="tut-dot"></span>
       <span class="tut-dot"></span>
     </div>
@@ -927,18 +926,23 @@ const CONFIG = {
   defaultZoom: 18,
 };
 
-// Defaults — overwritten by live prices from dashboard on load
+// Defaults — overwritten by live prices from dashboard on load.
+// Keyed by product ID (unique) rather than Type, since Type is just the
+// material name and isn't guaranteed unique across rows in the sheet.
 let FENCE_TYPES = {
-  wood_pine:  { label: 'Wood (Treated Pine)', pricePerFt: 35, color: '#e67e22', weight: 4 },
-  wood_cedar: { label: 'Wood (Cedar)',         pricePerFt: 42, color: '#c0392b', weight: 4 },
-  vinyl:      { label: 'Vinyl Privacy',        pricePerFt: 67, color: '#27ae60', weight: 4 },
-  chain_link: { label: 'Chain Link',           pricePerFt: 20, color: '#95a5a6', weight: 4 },
-  aluminum:   { label: 'Aluminum Ornamental',  pricePerFt: 46, color: '#2980b9', weight: 4 },
+  wood_pine:  { label: 'Wood (Treated Pine)', pricePerFt: 35, color: '#e67e22', weight: 4, type: 'wood_pine' },
+  wood_cedar: { label: 'Wood (Cedar)',         pricePerFt: 42, color: '#c0392b', weight: 4, type: 'wood_cedar' },
+  vinyl:      { label: 'Vinyl Privacy',        pricePerFt: 67, color: '#27ae60', weight: 4, type: 'vinyl' },
+  chain_link: { label: 'Chain Link',           pricePerFt: 20, color: '#95a5a6', weight: 4, type: 'chain_link' },
+  aluminum:   { label: 'Aluminum Ornamental',  pricePerFt: 46, color: '#2980b9', weight: 4, type: 'aluminum' },
 };
 
+// Every gate is tied to a specific fence Type via `fenceType` — there's no
+// universal gate. These fallback gates aren't tied to the fallback fence
+// types above; they only exist as a placeholder until the live sheet loads.
 let GATE_TYPES = {
-  single: { label: 'Single Gate',       price: 700,  w: 28, h: 16 },
-  double: { label: 'Double/Drive Gate', price: 1400, w: 40, h: 16 },
+  single: { label: 'Single Gate',       price: 700,  w: 28, h: 16, fenceType: '' },
+  double: { label: 'Double/Drive Gate', price: 1400, w: 40, h: 16, fenceType: '' },
 };
 
 // Load live prices from Google Sheet
@@ -951,18 +955,26 @@ let GATE_TYPES = {
     const gates = {};
     data.products.forEach(p => {
       if (p.Category === 'gate') {
-        gates[p.Type] = { label: p.Label, price: Number(p['Price Per Ft']) || 0, w: p.Type === 'double_gate' ? 40 : 28, h: 16 };
+        gates[p.ID] = {
+          label: p.Label,
+          price: Number(p['Price Per Ft']) || 0,
+          w: /double|drive/i.test(p.Label) ? 40 : 28,
+          h: 16,
+          fenceType: (p.FenceType || '').trim(),
+        };
       } else {
-        fences[p.Type] = { label: p.Label, pricePerFt: Number(p['Price Per Ft']) || 0, color: p.Color || '#333', weight: 4 };
+        fences[p.ID] = { label: p.Label, pricePerFt: Number(p['Price Per Ft']) || 0, color: p.Color || '#333', weight: 4, type: p.Type };
       }
     });
     if (Object.keys(fences).length > 0) FENCE_TYPES = fences;
     if (Object.keys(gates).length > 0) GATE_TYPES = gates;
-    // Set default fence type to first available
-    if (!FENCE_TYPES[state.fenceType]) state.fenceType = Object.keys(FENCE_TYPES)[0];
-    if (!GATE_TYPES[state.gateType]) state.gateType = Object.keys(GATE_TYPES)[0];
+    // If a previously-chosen type no longer exists, fall back to the first available.
+    // Leave state.fenceType alone if it's still unset (null) — the user hasn't chosen yet.
+    if (state.fenceType && !FENCE_TYPES[state.fenceType]) state.fenceType = Object.keys(FENCE_TYPES)[0];
+    if (state.gateType && !GATE_TYPES[state.gateType]) state.gateType = null;
     // Re-render the type buttons with live prices
     if (typeof renderFenceTypeBtns === 'function') renderFenceTypeBtns();
+    if (typeof renderGateTypeBtns === 'function') renderGateTypeBtns();
   } catch (e) {
     // Silently fall back to hardcoded defaults
   }
@@ -971,9 +983,12 @@ let GATE_TYPES = {
 const isTouch = () => navigator.maxTouchPoints > 0;
 
 function getHint(mode) {
-  if (mode === 'draw') return isTouch()
-    ? 'Tap the map to place fence points. Tap Finish Segment when done.'
-    : 'Click to place fence points. Double-click or press Enter to finish. Esc to cancel.';
+  if (mode === 'draw') {
+    if (!state.fenceType) return 'Choose a fence type below, then click the map to start drawing.';
+    return isTouch()
+      ? 'Tap the map to place fence points. Tap Finish Segment when done.'
+      : 'Click to place fence points. Double-click or press Enter to finish. Esc to cancel.';
+  }
   if (mode === 'gate') return isTouch()
     ? 'Tap directly on a fence segment to place a gate.'
     : 'Click directly on an existing fence segment to place a gate.';
@@ -1015,7 +1030,7 @@ const state = {
   segments: [],   // { id, type, points:[[lat,lng],...], polyline }
   gates: [],      // { id, segmentId, type, latlng:[lat,lng], t, marker }
   mode: 'draw',
-  fenceType: 'wood_pine',
+  fenceType: null,
   gateType: 'single',
   drawing: {
     active: false,
@@ -1165,7 +1180,7 @@ function bindSegmentEvents(seg) {
     else if (state.mode === 'gate') seg.polyline.setOptions({ strokeWeight: 7 });
   });
   seg.polyline.addListener('mouseout', () => {
-    seg.polyline.setOptions({ strokeWeight: 5, strokeColor: FENCE_TYPES[seg.type].color });
+    seg.polyline.setOptions({ strokeWeight: 5, strokeColor: FENCE_TYPES[seg.type]?.color ?? seg.polyline.get('strokeColor') });
   });
 }
 
@@ -1232,6 +1247,7 @@ function placeGate(latLng) {
 }
 
 function addGate(segmentId, latlng, t) {
+  if (!state.gateType) { showToast('No gate option available for this fence type'); return; }
   const id = uid();
   const marker = createGateMarker(latlng, state.gateType, id);
   state.gates.push({ id, segmentId, type: state.gateType, latlng, t, marker });
@@ -1241,9 +1257,10 @@ function addGate(segmentId, latlng, t) {
 
 function createGateMarker(latlng, type, gateId) {
   const cfg = GATE_TYPES[type];
+  const isDouble = /double|drive/i.test(cfg.label);
   const svg = `<svg width="${cfg.w}" height="${cfg.h}" xmlns="http://www.w3.org/2000/svg">
     <rect x="1" y="1" width="${cfg.w-2}" height="${cfg.h-2}" rx="3" fill="white" fill-opacity="0.92" stroke="#f4a818" stroke-width="2"/>
-    <text x="${cfg.w/2}" y="${cfg.h/2+4}" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="600" fill="#f4a818">${type === 'double' ? 'DBL' : 'SGL'}</text>
+    <text x="${cfg.w/2}" y="${cfg.h/2+4}" text-anchor="middle" font-family="sans-serif" font-size="9" font-weight="600" fill="#f4a818">${isDouble ? 'DBL' : 'SGL'}</text>
   </svg>`;
   const img = document.createElement('img');
   img.src = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
@@ -1278,6 +1295,7 @@ function setMode(mode) {
   document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
   document.getElementById('fence-type-section').style.display = mode === 'draw' ? '' : 'none';
   document.getElementById('gate-type-section').style.display  = mode === 'gate' ? '' : 'none';
+  if (mode === 'gate') renderGateTypeBtns();
   document.getElementById('hint-bar').textContent = getHint(mode);
   if (mode === 'draw') startDrawing();
   updateFinishBtn();
@@ -1301,11 +1319,65 @@ function renderFenceTypeBtns() {
       state.fenceType = key;
       document.querySelectorAll('.fence-type-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      document.getElementById('hint-bar').textContent = getHint(state.mode);
       const d = state.drawing;
       const dashIcons = (op) => [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: op, strokeColor: cfg.color, scale: 3 }, offset: '0', repeat: '12px' }];
       if (d.activeLine)  d.activeLine.setOptions({ icons: dashIcons(0.7) });
       if (d.previewLine) d.previewLine.setOptions({ icons: dashIcons(0.5) });
       d.dotMarkers.forEach(m => m.setIcon({ ...m.getIcon(), strokeColor: cfg.color }));
+
+      // Retroactively apply the new type to the whole design already drawn,
+      // so the customer can compare prices across materials.
+      if (state.segments.length > 0) {
+        state.segments.forEach(seg => {
+          seg.type = key;
+          seg.polyline.setOptions({ strokeColor: cfg.color });
+        });
+        renderEstimate();
+        encodeStateToUrl();
+      }
+      renderGateTypeBtns();
+    });
+    container.appendChild(btn);
+  }
+}
+
+// ─── GATE TYPE SELECTION ──────────────────────────────────────────────────────
+function renderGateTypeBtns() {
+  const container = document.getElementById('gate-type-btns');
+  container.innerHTML = '';
+  const currentFence = FENCE_TYPES[state.fenceType];
+
+  if (!currentFence) {
+    container.innerHTML = `<p style="font-size:0.8rem;color:var(--text-light);padding:8px 0;">Choose a fence type first.</p>`;
+    state.gateType = null;
+    return;
+  }
+
+  const available = Object.entries(GATE_TYPES).filter(
+    ([, cfg]) => cfg.fenceType && cfg.fenceType.toLowerCase() === (currentFence.type || '').toLowerCase()
+  );
+
+  if (available.length === 0) {
+    container.innerHTML = `<p style="font-size:0.8rem;color:var(--text-light);padding:8px 0;">No gate options set up yet for ${currentFence.label}.</p>`;
+    state.gateType = null;
+    return;
+  }
+
+  if (!state.gateType || !available.some(([key]) => key === state.gateType)) {
+    state.gateType = available[0][0];
+  }
+
+  for (const [key, cfg] of available) {
+    const btn = document.createElement('button');
+    btn.className = 'gate-type-btn' + (key === state.gateType ? ' active' : '');
+    btn.dataset.gate = key;
+    const icon = /double|drive/i.test(cfg.label) ? '🏗️' : '🚪';
+    btn.innerHTML = `<span class="gate-icon">${icon}</span>${cfg.label}<br><small>$${cfg.price.toLocaleString()}</small>`;
+    btn.addEventListener('click', () => {
+      state.gateType = key;
+      document.querySelectorAll('.gate-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
     });
     container.appendChild(btn);
   }
@@ -1316,14 +1388,16 @@ function buildEstimate() {
   const lines = [];
   let total = 0;
   for (const seg of state.segments) {
-    const ft = segmentLengthFt(seg.points);
     const cfg = FENCE_TYPES[seg.type];
+    if (!cfg) continue; // stale type from an old shared link — skip rather than crash
+    const ft = segmentLengthFt(seg.points);
     const cost = Math.max(ft * cfg.pricePerFt, 0);
     total += cost;
     lines.push({ type: 'fence', label: `${cfg.label} — ${Math.round(ft)} ft`, cost, color: cfg.color });
   }
   for (const gate of state.gates) {
     const cfg = GATE_TYPES[gate.type];
+    if (!cfg) continue;
     total += cfg.price;
     lines.push({ type: 'gate', label: cfg.label, cost: cfg.price });
   }
@@ -1417,7 +1491,7 @@ function loadStateFromUrl() {
     }
     for (const gd of (payload.g ?? [])) {
       const seg = state.segments.find(s => s.id === gd.sid);
-      if (!seg) continue;
+      if (!seg || !GATE_TYPES[gd.t]) continue; // seg missing, or stale gate type from an old shared link
       const latlng = pointAtT(seg.points, gd.frac) ?? gd.ll;
       const marker = createGateMarker(latlng, gd.t, gd.id);
       state.gates.push({ id: gd.id, segmentId: gd.sid, type: gd.t, latlng, t: gd.frac, marker });
@@ -1512,6 +1586,7 @@ window.initMap = function () {
   let pendingClick = null;
   map.addListener('click', (e) => {
     if (state.mode === 'draw' && state.drawing.active) {
+      if (!state.fenceType) { showToast('Choose a fence type first'); return; }
       clearTimeout(pendingClick);
       pendingClick = setTimeout(() => {
         const pt = [e.latLng.lat(), e.latLng.lng()];
@@ -1581,11 +1656,6 @@ window.initMap = function () {
 
   // ── UI event wiring ───────────────────────────────────────────────────────
   document.querySelectorAll('.mode-btn').forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
-  document.querySelectorAll('.gate-type-btn').forEach(btn => btn.addEventListener('click', () => {
-    state.gateType = btn.dataset.gate;
-    document.querySelectorAll('.gate-type-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }));
   document.getElementById('search-btn').addEventListener('click', doSearch);
   document.getElementById('address-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
   document.getElementById('share-btn').addEventListener('click', async () => {
