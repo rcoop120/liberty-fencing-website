@@ -47,19 +47,21 @@ Full-screen Google Maps tool (48 KB). Key features:
 - **Google Maps API** — satellite imagery, geometry library for distance calculation, address autocomplete
   - API key is embedded directly in `fence-designer.html`
 - **Drawing tools** — user sketches fence lines as polylines on their property
-- **Pricing engine** — per-foot rates by fence type (6 types) and material (4 variations each)
-- **Lead capture** — submits name/phone/email + design data via `POST` to `https://fencepostos-production.up.railway.app/leads` (FencepostOS CRM on Railway)
+- **Pricing engine** — per-foot rates by fence type and material, loaded live from a Google Sheet on page load (`GET` to the Apps Script webhook, `?action=products`)
+- **Lead capture** — submits name/phone/email + design data via `POST` to a Google Apps Script webhook (`CONFIG.webhookUrl`), which writes to a Google Sheet. Uses `mode: 'no-cors'` since Apps Script `doPost` can't set CORS headers — the client can detect outright network failures but not server-side errors (opaque response).
 - **URL sharing** — design state encoded as BASE64 in the URL hash for SMS/email sharing
 - Mobile-responsive collapsible panel
+
+Backend logic for both lead intake and the admin dashboard (`dashboard.html`) lives in `leads-script.gs`, deployed as the Apps Script web app.
 
 ## External Services
 
 | Service | Purpose |
 |---|---|
 | Google Maps JS API | Satellite maps, geometry, address autocomplete in fence designer |
-| FencepostOS (Railway) | Lead intake webhook — receives design + contact info |
+| Google Apps Script (`leads-script.gs`) | Lead intake + pricing data — reads/writes a Google Sheet, backs the fence designer and `dashboard.html` |
 | Twilio | SMS delivery for appointment/follow-up messages (referenced in privacy policy) |
-| GitHub Pages | Static hosting via GitHub Actions |
+| GitHub Pages | Static hosting via GitHub Actions, fronted by Cloudflare (proxied DNS — edge cache may need manual purge after deploy) |
 
 ## Quote / Estimate Section
 

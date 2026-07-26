@@ -1628,13 +1628,24 @@ window.initMap = function () {
         line_items: lines, subtotal: Math.round(total),
       },
     };
-    try { await fetch(CONFIG.webhookUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); } catch {}
+    let submitFailed = false;
+    try {
+      await fetch(CONFIG.webhookUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+    } catch (err) {
+      console.error('Lead submission failed:', err);
+      submitFailed = true;
+    }
     document.getElementById('quote-form').style.display = 'none';
     const success = document.createElement('div');
     success.className = 'success-box';
-    success.innerHTML = `<div class="success-icon">✅</div><h3>We've got your design!</h3>
-      <p>Thanks, ${name.split(' ')[0]}! We'll reach out to ${phone} shortly to schedule your free on-site estimate.<br><br>
-      Questions? Call us at <a href="tel:${CONFIG.businessPhone}">${CONFIG.businessPhone}</a>.</p>`;
+    // no-cors means we can't read the real HTTP status, so this only catches
+    // outright network failures (offline, DNS, unreachable) — not server-side errors.
+    success.innerHTML = submitFailed
+      ? `<div class="success-icon">⚠️</div><h3>Couldn't send your design</h3>
+         <p>Looks like a connection issue on our end, ${name.split(' ')[0]}. Please call us directly so we don't lose your info: <a href="tel:${CONFIG.businessPhone}">${CONFIG.businessPhone}</a>.</p>`
+      : `<div class="success-icon">✅</div><h3>We've got your design!</h3>
+         <p>Thanks, ${name.split(' ')[0]}! We'll reach out to ${phone} shortly to schedule your free on-site estimate.<br><br>
+         Questions? Call us at <a href="tel:${CONFIG.businessPhone}">${CONFIG.businessPhone}</a>.</p>`;
     document.querySelector('.modal-box').appendChild(success);
   });
   document.getElementById('mobile-toggle').addEventListener('click', () => document.getElementById('panel').classList.toggle('open'));
