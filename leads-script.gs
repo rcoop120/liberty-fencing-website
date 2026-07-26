@@ -56,7 +56,7 @@ function handleNewLead(data) {
   ]);
 
   MailApp.sendEmail({
-    to: "ryan@liberty-fencing.com, esti@liberty-fencing.com",
+    to: "ryan120v@gmail.com",
     subject: "New Fence Lead: " + (data.name || "Unknown"),
     body: "Name: " + (data.name || "") + "\n" +
           "Phone: " + (data.phone || "") + "\n" +
